@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  stkproject:
+    image: stkproject
+    build:
+      context: ./STKProject
+      dockerfile: Dockerfile
+    ports:
+       - 8081:80

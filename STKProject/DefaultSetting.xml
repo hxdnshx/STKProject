@@ -1,0 +1,142 @@
+<STKProject>
+	<Services>
+    <Service Class="NetworkManager">
+      <ListenUrl>http://*:80</ListenUrl>
+    </Service>
+    <!--
+		<Service Class="RssObserver">
+    		<Alias>Feed1</Alias>
+    		<URL>https://api.prprpr.me/weibo/rss/5217655579</URL>
+    		<Interval>3600000</Interval>
+    	</Service>
+		<Service Class="DiffDatabase">
+	      <Alias>DB</Alias>
+	      <DatabasePath>diff.db</DatabasePath>
+	    </Service>
+	    <Service Class="NianStalker">
+	      <TargetUID>923650</TargetUID>
+	      <Interval>3600000</Interval>
+	      <UserName>741782800@qq.com</UserName>
+	      <PassWord>17672155</PassWord>
+	      <Alias>Nian</Alias>
+	    </Service>
+	    <Service Class="NianStalker">
+	      <TargetUID>951342</TargetUID>
+	      <Interval>3611000</Interval>
+	      <Session>Nian</Session>
+	      <Alias>Nian2</Alias>
+	    </Service>
+
+	    <Service Class="DomainProxy">
+	      <Alias>RSSProxy</Alias>
+	      <SubUrl>/RSS</SubUrl>
+	    </Service>
+	    <Service Class="DomainProxy">
+	      <Alias>NianProxy</Alias>
+	      <SubUrl>/Nian</SubUrl>
+	    </Service>
+		<Service Class="RssTerminal">
+	      <Interval>180000</Interval>
+	      <Alias>RSS1</Alias>
+	      <FeedId>123462</FeedId>
+	      <FeedName>Retrospect53</FeedName>
+	      <OutputTimeZone>China Standard Time</OutputTimeZone>
+	    </Service>
+    -->
+	    <!--
+	    <Service Class="MailTerminal">
+	      <Alias>Mail1</Alias>
+	      <Interval>259200000</Interval>
+	      <MailPort>465</MailPort>
+	      <MailHost>smtp.seu.edu.cn</MailHost>
+	      <MailUName>213111333@seu.edu.cn</MailUName>
+	      <MailPWord>14001X</MailPWord>
+	      <MailSender>213111333@seu.edu.cn</MailSender>
+	      <MailTarget>741782800@qq.com</MailTarget>
+	      <MailSSL>true</MailSSL>
+	    </Service>
+	    
+	    <Service Class="LiveStalker">
+	        <Alias>Live2</Alias>
+	        <Interval>360000</Interval>
+	        <TargetRoom>4161280</TargetRoom>
+    	</Service>
+    	<Service Class="DomainProxy">
+	      <Alias>MonitorProxy</Alias>
+	      <SubUrl>/Status</SubUrl>
+	    </Service>
+	    <Service Class="BirthdayWorker">
+	      <Alias>Birth</Alias>
+	      <SubUrl>/Birthday</SubUrl>
+	      <BirthdaysFile>birthday.txt</BirthdaysFile>
+	    </Service>
+	    <Service Class="ServerChan">
+	    	<Alias>schan</Alias>
+	    	<SCKEY>SCU10710T2209a66b898b94db93bfffd67d69e4a2598a610da4f1b</SCKEY>
+	    </Service>
+	    <Service Class="FileTerminal">
+        	<Path>Memory</Path>
+        	<Alias>Memory</Alias>
+        	<Interval>259200000</Interval>
+    	</Service>
+      -->
+	</Services>
+	<Connections>
+    <!--
+	<Connection>
+		<From>schan.InputData</From>
+		<To>ServiceManager.ServiceCrashed</To>
+	</Connection>
+	<Connection>
+		<From>ServiceManager.DisplayStatus</From>
+		<To>MonitorProxy.OnRequest</To>
+	</Connection>
+	<Connection>
+      <From>DB.InputData</From>
+      <To>Feed1.DiffDetected</To>
+    </Connection>
+    <Connection>
+      <From>schan.InputData</From>
+      <To>Birth.BirthdayMatched</To>
+    </Connection>
+
+    <Connection>
+      <From>Nian.DisplayStepInfo</From>
+      <To>NianProxy.OnRequest</To>
+    </Connection>
+       
+    <Connection>
+      <From>DB.InputData</From>
+      <To>Nian.DiffDetected</To>
+    </Connection>
+    <Connection>
+      <From>DB.InputData</From>
+      <To>Nian2.DiffDetected</To>
+    </Connection>
+
+    <Connection>
+      <From>RSS1.DisplayRss</From>
+      <To>RSSProxy.OnRequest</To>
+    </Connection>
+    <Connection>
+      <From>RSS1.GetDatabase</From>
+      <To>DB.DatabaseSource</To>
+    </Connection>
+     -->
+    <!--
+    <Connection>
+      <From>Mail1.GetDatabase</From>
+      <To>DB.DatabaseSource</To>
+    </Connection>
+   
+    <Connection>
+      <From>Memory.GetDatabase</From>
+      <To>DB.DatabaseSource</To>
+    </Connection>
+    <Connection>
+        <From>DB.InputData</From>
+        <To>Live2.DiffDetected</To>
+    </Connection>
+ -->
+	</Connections>
+</STKProject>
