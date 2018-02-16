@@ -39,56 +39,7 @@ namespace STKProject
         private Task _svrTask;
 
         private VariableRouterCollection _router;
-
-        protected class NetworkStartup : IStartup
-        {
-
-            public RouteCollection router { get; private set; }
-            public Func<HttpContext, Task> DefaultHandler;
-            public bool Configured { get; set; }
-
-            public NetworkStartup()
-            {
-                Console.WriteLine("init");
-            }
-
-            public void Configure(IApplicationBuilder app)
-            {
-                Configure(app, app.ApplicationServices.GetService<ILoggerFactory>());
-            }
-
-            // Routes must configured in Configure
-            public void Configure(IApplicationBuilder app, ILoggerFactory loggerFactory)
-            {
-                VariableRouterCollection routerCollection = new VariableRouterCollection();
-
-                //var routes = routeBuilder.Build();
-                //router = routes as RouteCollection;
-                app.UseRouter(routerCollection);
-                router = routerCollection;
-                Configured = true;
-
-                // Show link generation when no routes match.
-                app.Run(async (context) =>
-                {
-                    if (DefaultHandler != null)
-                    {
-                        await DefaultHandler(context);
-                        return;
-                    }
-                    context.Response.StatusCode = 404;
-                    await context.Response.WriteAsync("404 - Page Not Found.");
-                });
-                // End of app.Run
-            }
-
-            IServiceProvider IStartup.ConfigureServices(IServiceCollection services)
-            {
-                services.AddRouting();
-                return services.BuildServiceProvider();
-            }
-        }
-
+        
         public void Start()
         {
             if (_status) return;
