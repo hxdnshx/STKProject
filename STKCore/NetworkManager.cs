@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Constraints;
+using Microsoft.AspNetCore.Routing.Template;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -83,13 +84,13 @@ namespace STKProject
         /// <param name="dst"></param>
         /// <param name="fromArg"></param>
         /// <returns></returns>
-        private static Expression ResolveTypecast(Type dst,Expression fromArg)
+        public static Expression ResolveTypecast(Type dst,Expression fromArg)
         {
             
             var typeConverter = TypeDescriptor.GetConverter(dst);
             Expression<Action> act = () => typeConverter.ConvertFrom(null);
             MethodInfo mi = ((MethodCallExpression) act.Body).Method;
-            return Expression.Call(Expression.Constant(typeConverter), mi, fromArg);
+            return Expression.Convert(Expression.Call(Expression.Constant(typeConverter), mi, fromArg),dst);
         }
         /// <summary>
         /// Get default value of specfied type.
@@ -126,6 +127,22 @@ namespace STKProject
             return GetValueExpr;
         }
 
+        public static Expression ContextGetQueryValue(ParameterInfo param, Expression httpContext)
+        {
+            //context.Request.Query[index]
+            PropertyInfo request = typeof(HttpContext).GetProperty("Request");
+            PropertyInfo query = request.PropertyType.GetProperty("Query");
+            MethodInfo get_Item = query.PropertyType.GetMethod("get_Item",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var QueryExpr = Expression.Property(Expression.Property(httpContext, request), query);
+            MethodInfo contains = query.PropertyType.GetMethod("ContainsKey",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var checkExpr = Expression.Call(QueryExpr, contains, Expression.Constant(param.Name));
+            var getExpr = Expression.Call(QueryExpr, get_Item, Expression.Constant(param.Name));
+            return Expression.Condition(checkExpr, getExpr,
+                Expression.Constant(param.HasDefaultValue ? param.DefaultValue : GetDefaultValue(param.ParameterType)));
+        }
+
         private static Action<HttpContext> SimpleTypeResolver<T>(Func<HttpContext, T> func)
         {
             
@@ -155,7 +172,6 @@ namespace STKProject
             }
             else
             {
-                var xfunc = (Func<HttpContext, string>) func;
                 return context =>
                 {
                     var result = func.DynamicInvoke(context);
@@ -167,10 +183,14 @@ namespace STKProject
             }
         }
 
-        private static Action<HttpContext> BuildHandler(MethodInfo mi,object target)
+        private static Action<HttpContext> BuildHandler(MethodInfo mi,object target,string routeParameter)
         {
+            var template = TemplateParser.Parse(routeParameter);
             var context = Expression.Parameter(typeof(HttpContext));
-            var parameters = mi.GetParameters().Select(para => ResolveTypecast(para.ParameterType, ContextGetRouteValue(para, context)));
+            var parameters = mi.GetParameters().Select(para => ResolveTypecast(para.ParameterType,
+                (template.Parameters.FirstOrDefault(ele => ele.Name == para.Name) != default(TemplatePart))
+                    ? ContextGetRouteValue(para, context)
+                    : ContextGetQueryValue(para, context)));
             var expr = Expression.Call(Expression.Constant(target), mi, parameters);
             var callLambda = Expression.Lambda(expr, context).Compile();
             if (mi.ReturnType != typeof(void))
@@ -181,11 +201,15 @@ namespace STKProject
             return (Action<HttpContext>)callLambda;
         }
 
-        private static Action<HttpContext> BuildHandler(Delegate handler)
+        private static Action<HttpContext> BuildHandler(Delegate handler, string routeParameter)
         {
+            var template = TemplateParser.Parse(routeParameter);
             //ummmm还有返回值的转换来着，忘记做了
             var context = Expression.Parameter(typeof(HttpContext));
-            var parameters = handler.Method.GetParameters().Select(para => ResolveTypecast(para.ParameterType,ContextGetRouteValue(para, context)));
+            var parameters = handler.Method.GetParameters().Select(para => ResolveTypecast(para.ParameterType,
+                (template.Parameters.FirstOrDefault(ele => ele.Name == para.Name) != default(TemplatePart))
+                    ? ContextGetRouteValue(para, context)
+                    : ContextGetQueryValue(para, context)));
             var expr = Expression.Invoke(Expression.Constant(handler), parameters);
             var callLambda = Expression.Lambda(expr, context).Compile();
             if (handler.Method.ReturnType != typeof(void))
@@ -211,8 +235,11 @@ namespace STKProject
                 Action<HttpContext> func = null;
                 foreach (var info in methodInfo.GetCustomAttributes(false).OfType<RouteAttribute>())
                 {
-                    if(func == null)
-                        func = BuildHandler(methodInfo, srv);
+                    var templateStr = MixRoute(srv.Alias, info.Template);
+                    if (func == null)
+                        func = BuildHandler(methodInfo, srv, templateStr);
+                    var constraints =
+                        new RouteValueDictionary(new {httpMethod = new HttpMethodRouteConstraint(info.Verb)});
                     var route = new Route(
                         new RouteHandler(context =>
                         {
@@ -230,18 +257,12 @@ namespace STKProject
                             ret.Start();
                             return ret;
                         }),
-                        MixRoute(srv.Alias,info.Template),
+                        routeTemplate: templateStr,
                         defaults: null,
-                        constraints: new RouteValueDictionary(new { httpMethod = new HttpMethodRouteConstraint(info.Verb) }),
+                        constraints: constraints,
                         dataTokens: null,
                         inlineConstraintResolver: inlineResolver);
-                    foreach (var param in methodInfo.GetParameters().Select(param=>param.Name))
-                    {
-                        if (route.ParsedTemplate.Parameters.First(template => template.Name == param) == null)
-                        {
-                            throw new ArgumentException($"Error : Can not match parameter {param} to route");
-                        }
-                    }
+                    
                     routers.Add(route);
                 }
             }
@@ -265,6 +286,9 @@ namespace STKProject
             return result;
         }
 
-        
+        public void RemoveRoute(ISTKService srv)
+        {
+            _router.RemoveRouting(srv);
+        }
     }
 }

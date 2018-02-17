@@ -348,7 +348,7 @@ namespace STKProject
                 {
                     new ServiceSetting
                     {
-                        Service = nameof(NetworkManager),
+                        Service = nameof(NetworkManager), 
                         Scope = ""
                     },
                     new ServiceSetting
@@ -670,6 +670,19 @@ namespace STKProject
             var retContent = JsonConvert.SerializeObject(status,Formatting.Indented);
             Console.WriteLine(retContent);
             return retContent;
+        }
+        [Route("Status/{Alias}")]
+        public object GetServiceStatus(string Alias)
+        {
+            var srv = _activeServices.FirstOrDefault(service => service.Instance.Alias == Alias)?.Instance;
+            return new
+            {
+                Alias = srv?.Alias??"Not Found",
+                Type = srv?.GetType()?.Name??"-",
+                Status = ((srv as STKWorker)?.ServiceStatus) ?? true ? "Running" : "Crashed",
+                LastExecTime = ((srv as STKWorker)?.LastExecTime.ToString()) ?? "-",
+                NextExecTime = ((srv as STKWorker)?.NextExecTime.ToString()) ?? "-",
+            };
         }
 
         #endregion
