@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -31,6 +31,8 @@ namespace STKProject
 
         public void Start()
         {
+            if (updateJob != null)
+                return;
             Prepare();
             isCancel = new CancellationTokenSource();
             updateJob = Task.Factory.StartNew(() => { UpdateLoop(isCancel.Token); }, isCancel.Token);

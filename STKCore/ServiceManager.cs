@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -12,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
+using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Formatting = Newtonsoft.Json.Formatting;
@@ -34,7 +36,13 @@ namespace STKProject
 
         private static Dictionary<int, Type> _actionTypes = new Dictionary<int, Type>();
 
-        public CancellationToken TerminateToken { get; set; }
+        [NotMapped]
+        public CancellationTokenSource TerminateToken { get; set; }
+
+        public ServiceManager()
+        {
+            TerminateToken = new CancellationTokenSource();
+        }
 
         /// <summary>
         /// 因为Action<>根据不同的泛型参数个数，对应的是不同的类型，所以需要获取一下w
@@ -95,8 +103,8 @@ namespace STKProject
         {
             private ServiceContext source;
             private ServiceContext destination;
-            private PropertyInfo _targetDelegate;
-            private MethodInfo _targetMethod;
+            public PropertyInfo TargetDelegate;
+            public MethodInfo TargetMethod;
             private Delegate _connectionDelegate;
             private Delegate _method;
             private bool _isConnected;
@@ -104,10 +112,10 @@ namespace STKProject
             /// <summary>
             /// 为这个属性赋值时会自动加入Connection列表
             /// </summary>
-            private ServiceContext Source
+            public ServiceContext Source
             {
                 get => source;
-                set
+                private set
                 {
                     value.Connections.Add(this);
                     source = value;
@@ -117,10 +125,10 @@ namespace STKProject
             /// <summary>
             /// 在为这个属性赋值时会自动加入Connection列表
             /// </summary>
-            private ServiceContext Destination
+            public ServiceContext Destination
             {
                 get => destination;
-                set
+                private set
                 {
                     value.Connections.Add(this);
                     destination = value;
@@ -153,22 +161,22 @@ namespace STKProject
 
             private void ResolveTarget(string srcDelegate,string dstMethod)
             {
-                _targetDelegate = Source.Instance.GetType().GetProperty(srcDelegate);
-                if (_targetDelegate == null)
+                TargetDelegate = Source.Instance.GetType().GetProperty(srcDelegate);
+                if (TargetDelegate == null)
                 {
                     Console.WriteLine($"Error : Can not found {Source.Instance.Alias}.{srcDelegate}");
                     throw new Exception($"Error : Can not found {Source.Instance.Alias}.{srcDelegate}");
                 }
 
-                _targetMethod = Destination.Instance.GetType().GetMethod(dstMethod,
+                TargetMethod = Destination.Instance.GetType().GetMethod(dstMethod,
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (_targetMethod == null)
+                if (TargetMethod == null)
                 {
                     Console.WriteLine($"Error : Can not found {Destination.Instance.Alias}.{dstMethod}");
                     throw new Exception($"Error : Can not found {Destination.Instance.Alias}.{dstMethod}");
                 }
 
-                _method = _targetMethod.CreateDelegate(typeof(Delegate), Destination.Instance);
+                _method = TargetMethod.CreateDelegate(typeof(Delegate), Destination.Instance);
             }
 
             private static bool IsFunc(MethodInfo mi)
@@ -190,8 +198,8 @@ namespace STKProject
                 {
                     throw new Exception($"Error : Connection Target = null");
                 }
-                var fromMethodInfo = _targetMethod;
-                var toPortInfo = _targetDelegate;
+                var fromMethodInfo = TargetMethod;
+                var toPortInfo = TargetDelegate;
                 var fromParameterInfo = fromMethodInfo.GetParameters();
                 var toParameterInfo = toPortInfo.PropertyType.GetGenericArguments();
                 for (int i = 0; i < fromParameterInfo.Length; i++)
@@ -218,8 +226,8 @@ namespace STKProject
             {
                 if (!_isConnected)
                     return;
-                var fromMethodInfo = _targetMethod;
-                var toPortInfo = _targetDelegate;
+                var fromMethodInfo = TargetMethod;
+                var toPortInfo = TargetDelegate;
                 var toPortValue = (Delegate)toPortInfo.GetValue(Source.Instance);
                 var finalDelegate = Delegate.Remove(toPortValue, _connectionDelegate);
                 toPortInfo.SetValue(Source.Instance, finalDelegate);
@@ -229,10 +237,15 @@ namespace STKProject
 
         public class ServiceSetting
         {
-            public Dictionary<string, string> Properties;
-            public Dictionary<string, string> Connections;
-            public string Scope;
-            public string Service;
+            public class ConnectionInfo
+            {
+                public string Source { get; set; }
+                public string Destination { get; set; }
+            }
+            public Dictionary<string, string> Properties { get; set; }
+            public List<ConnectionInfo> Connections { get; set; }
+            public string Scope { get; set; }
+            public string Service { get; set; }
             [JsonIgnore] public Type ServiceType;
         }
 
@@ -250,7 +263,7 @@ namespace STKProject
                 if(srv.Properties == null)
                     srv.Properties = new Dictionary<string, string>();
                 if(srv.Connections == null)
-                    srv.Connections = new Dictionary<string, string>();
+                    srv.Connections = new List<ServiceSetting.ConnectionInfo>();
                 srv.ServiceType = _serviceBaseInfo[srv.Service];
                 foreach (var srvProperty in srv.Properties.Keys)
                 {
@@ -272,7 +285,7 @@ namespace STKProject
             try
             {
                 string str = File.ReadAllText(SettingPath);
-                var setting = JObject.Parse(str).ToObject< List<ServiceSetting> >();
+                var setting = JsonConvert.DeserializeObject<List<ServiceSetting>>(str);
                 return setting;
             }
             catch (Exception e)
@@ -283,8 +296,44 @@ namespace STKProject
             return null;
         }
 
-        public void StartService(ServiceSetting setting)
+        public void SaveSetting(string path)
         {
+            List<ServiceSetting> services = new List<ServiceSetting>();
+            foreach (var srv in _activeServices)
+            {
+                ServiceSetting setting = new ServiceSetting();
+                setting.Service = srv.Instance.GetType().Name;
+                setting.Scope = srv.Scope;
+                setting.ServiceType = srv.Instance.GetType();
+                setting.Properties = new Dictionary<string, string>();
+                foreach (var propertyInfo in srv.Instance.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    var value = propertyInfo.GetValue(srv.Instance);
+                    if(propertyInfo.GetCustomAttribute<NotMappedAttribute>(false) == null)
+                        setting.Properties[propertyInfo.Name] = Convert.ToString(value);
+                }
+                setting.Connections = new List<ServiceSetting.ConnectionInfo>();
+                foreach (var conn in srv.Connections)
+                {
+                    if (conn.Source.Instance != srv.Instance)
+                        continue;
+                    var src = conn.TargetDelegate.Name;
+                    var dst = $"{conn.Destination.Instance.Alias}.{conn.TargetMethod.Name}";
+                    setting.Connections.Add(new ServiceSetting.ConnectionInfo
+                    {
+                        Source = src,
+                        Destination = dst,
+                    });
+                }
+                services.Add(setting);
+            }
+            File.WriteAllText(path,JsonConvert.SerializeObject(services));
+        }
+
+        public void InitService(ServiceSetting setting)
+        {
+            if (setting.ServiceType == this.GetType())
+                return;
             var context = new ServiceContext();
             context.Instance = _serviceTypeInfo[setting.ServiceType].Builder(this, setting.Scope) as ISTKService;
             context.Scope = setting.Scope;
@@ -292,16 +341,34 @@ namespace STKProject
             foreach (var prop in setting.Properties)
             {
                 var propInfo = setting.ServiceType.GetProperty(prop.Key);
-                propInfo.SetValue(context.Instance,prop.Value);
+                if (propInfo.PropertyType == typeof(bool))
+                {
+                    if (prop.Value == "True")
+                    {
+                        propInfo.SetValue(context.Instance, true);
+                    }
+                    else if(prop.Value == "False")
+                    {
+                        propInfo.SetValue(context.Instance,false);
+                    }
+                    else
+                    {
+                        throw new ArgumentException($"Invalid value : {propInfo.Name} <= {prop.Value}");
+                    }
+                }
+                else
+                {
+                    propInfo.SetValue(context.Instance,Convert.ChangeType(prop.Value,propInfo.PropertyType));
+                }
             }
 
             foreach (var conn in setting.Connections)
             {
-                var dst = conn.Value.Split('.');
+                var dst = conn.Destination.Split('.');
                 if (dst.Length != 2)
                     throw new Exception($"Error : Bad Connection String : {conn}");
                 var dstService = GetServiceContext(dst[0], context.Scope);
-                var connection = new Connection(context, dstService, conn.Key, dst[1]);
+                var connection = new Connection(context, dstService, conn.Source, dst[1]);
                 if (dstService != null)
                 {
                     connection.Connect();
@@ -312,7 +379,7 @@ namespace STKProject
                 }
             }
             _activeServices.Add(context);
-            context.Instance.Start();
+            //context.Instance.Start();
         }
 
         private void StopService(ServiceContext context)
@@ -341,6 +408,7 @@ namespace STKProject
             if(_serviceBaseInfo == null)
                 InitializeServices();
             var srvList = LoadSetting();
+            bool isDefaultSettingLoaded = false;
             if (srvList == null)
             {
                 //Load Default Setting
@@ -357,6 +425,7 @@ namespace STKProject
                         Scope = ""
                     }
                 };
+                isDefaultSettingLoaded = true;
             }
 
             Debug.Assert(_activeServices.Count == 0);
@@ -384,7 +453,7 @@ namespace STKProject
                 {
                     if (srv.Value.Count == 0)
                     {
-                        StartService(srv.Key);
+                        InitService(srv.Key);
                         foreach (var otherSrv in depends)
                         {
                             if(otherSrv.Key == srv.Key)
@@ -417,6 +486,8 @@ namespace STKProject
                     network.ResolveRouter(srv.Instance);
                 }
             }
+            if(isDefaultSettingLoaded)
+                SaveSetting(SettingPath);
         }
 
         public static string GetExePath()
@@ -683,6 +754,13 @@ namespace STKProject
                 LastExecTime = ((srv as STKWorker)?.LastExecTime.ToString()) ?? "-",
                 NextExecTime = ((srv as STKWorker)?.NextExecTime.ToString()) ?? "-",
             };
+        }
+
+        [Route("Stop")]
+        public string Terminate()
+        {
+            TerminateToken.Cancel();
+            return "System Terminated.";
         }
 
         #endregion

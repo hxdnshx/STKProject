@@ -321,3 +321,7 @@ ASALocalRun/
 
 # MSBuild Binary and Structured Log
 *.binlog
+
+STKProject/*.db
+STKProject/*.json
+STKProject/*.session

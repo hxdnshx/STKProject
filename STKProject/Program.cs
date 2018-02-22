@@ -42,8 +42,7 @@ namespace STKProject
             ServiceManager manager = new ServiceManager();
             manager.Initialize();
             manager.Start();
-            CancellationToken token = new CancellationToken();
-            manager.TerminateToken = token;
+            CancellationToken token = manager.TerminateToken.Token;
             // If token cannot be canceled, attach Ctrl+C and SIGTERM shutdown
             var done = new ManualResetEventSlim(false);
             using (var cts = new CancellationTokenSource())
@@ -53,6 +52,7 @@ namespace STKProject
                 linked.Token.WaitHandle.WaitOne();
                 done.Set();
             }
+            manager.Stop();
         }
     }
 }

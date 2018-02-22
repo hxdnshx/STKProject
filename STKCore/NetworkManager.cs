@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Constraints;
@@ -40,6 +41,8 @@ namespace STKProject
         private Task _svrTask;
 
         private VariableRouterCollection _router;
+
+        private HttpContext _resolvVirtualPathContext;
         
         public void Start()
         {
@@ -64,12 +67,18 @@ namespace STKProject
                 .Build();
             _svrTask = _host.StartAsync(_token);
             _svrTask.Wait();
+            var factory = _host.Services.GetService<IHttpContextFactory>();
+            _resolvVirtualPathContext = factory.Create(_host.ServerFeatures);
             return;
         }
 
         public void Stop()
         {
-
+            if (_resolvVirtualPathContext != null)
+            {
+                var factory = _host.Services.GetService<IHttpContextFactory>();
+                factory.Dispose(_resolvVirtualPathContext);
+            }
         }
 
         public void LoadDefaultSetting()
@@ -235,6 +244,7 @@ namespace STKProject
                 Action<HttpContext> func = null;
                 foreach (var info in methodInfo.GetCustomAttributes(false).OfType<RouteAttribute>())
                 {
+                    var routeName = $"{srv.Alias}-{methodInfo.Name}";
                     var templateStr = MixRoute(srv.Alias, info.Template);
                     if (func == null)
                         func = BuildHandler(methodInfo, srv, templateStr);
@@ -257,6 +267,7 @@ namespace STKProject
                             ret.Start();
                             return ret;
                         }),
+                        routeName:routeName,
                         routeTemplate: templateStr,
                         defaults: null,
                         constraints: constraints,
@@ -289,6 +300,18 @@ namespace STKProject
         public void RemoveRoute(ISTKService srv)
         {
             _router.RemoveRouting(srv);
+        }
+
+        public string GetVirtualPath(ISTKService srv, MethodInfo mi, RouteValueDictionary args)
+        {
+            if (_resolvVirtualPathContext == null)
+            {
+                var factory = _host.Services.GetService<IHttpContextFactory>();
+                _resolvVirtualPathContext = factory.Create(_host.ServerFeatures);
+            }
+            var vpc = new VirtualPathContext(_resolvVirtualPathContext, null, args, $"{srv.Alias}-{mi.Name}");
+            var path = _router.GetVirtualPath(vpc).VirtualPath;
+            return "";
         }
     }
 }
