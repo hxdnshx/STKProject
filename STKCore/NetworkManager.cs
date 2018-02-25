@@ -215,10 +215,18 @@ namespace STKProject
             var template = TemplateParser.Parse(routeParameter);
             //ummmm还有返回值的转换来着，忘记做了
             var context = Expression.Parameter(typeof(HttpContext));
-            var parameters = handler.Method.GetParameters().Select(para => ResolveTypecast(para.ParameterType,
-                (template.Parameters.FirstOrDefault(ele => ele.Name == para.Name) != default(TemplatePart))
-                    ? ContextGetRouteValue(para, context)
-                    : ContextGetQueryValue(para, context)));
+            var parameters = handler.Method.GetParameters().Select(para =>
+            {
+                if (para.ParameterType == typeof(HttpContext))
+                {
+                    return context;
+                }
+
+                return ResolveTypecast(para.ParameterType,
+                    (template.Parameters.FirstOrDefault(ele => ele.Name == para.Name) != default(TemplatePart))
+                        ? ContextGetRouteValue(para, context)
+                        : ContextGetQueryValue(para, context));
+            });
             var expr = Expression.Invoke(Expression.Constant(handler), parameters);
             var callLambda = Expression.Lambda(expr, context).Compile();
             if (handler.Method.ReturnType != typeof(void))

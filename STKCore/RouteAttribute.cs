@@ -5,7 +5,7 @@ using System.Text;
 namespace STKProject
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
-    class RouteAttribute : Attribute,IRouteInfo
+    public class RouteAttribute : Attribute,IRouteInfo
     {
         public string Template { get; set; }
 

@@ -18,6 +18,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Nian_immigration", "Nian_im
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NianObserver", "NianObserver\NianObserver.csproj", "{BCBE27F9-DC05-4B71-9776-571160D319A2}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NeteaseObserver", "..\DockerTest\NeteaseObserver\NeteaseObserver.csproj", "{686C8905-AED4-469C-8663-650FCA706729}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MiscObserver", "MiscObserver\MiscObserver.csproj", "{2E29BD79-97F6-451A-BD14-A1664BAE59FA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +52,14 @@ Global
 		{BCBE27F9-DC05-4B71-9776-571160D319A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BCBE27F9-DC05-4B71-9776-571160D319A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BCBE27F9-DC05-4B71-9776-571160D319A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{686C8905-AED4-469C-8663-650FCA706729}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{686C8905-AED4-469C-8663-650FCA706729}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{686C8905-AED4-469C-8663-650FCA706729}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{686C8905-AED4-469C-8663-650FCA706729}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E29BD79-97F6-451A-BD14-A1664BAE59FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E29BD79-97F6-451A-BD14-A1664BAE59FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E29BD79-97F6-451A-BD14-A1664BAE59FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E29BD79-97F6-451A-BD14-A1664BAE59FA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

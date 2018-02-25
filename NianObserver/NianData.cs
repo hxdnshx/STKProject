@@ -14,7 +14,7 @@ namespace STKProject.NianObserver
         public DbSet<Dream> Dreams { get; set; }
         public DbSet<Step> Steps { get; set; }
         public DbSet<Comment> Comments { get; set; }
-        public DbSet<UserStatus> UserInfo { get; set; }
+        public DbSet<User> UserInfo { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -65,16 +65,18 @@ namespace STKProject.NianObserver
         }
     }
 
-    public class UserStatus : MixJson
+    public class User : MixJson
     {
         [Key]
         public int UserId { get; set; }
+        public List<Dream> Dreams { get; set; }
     }
 
     public class Dream : MixJson
     {
         public int DreamId { get; set; }
         public List<Step> Steps { get; set; }
+        public User User { get; set; }
     }
 
     public class Step : MixJson

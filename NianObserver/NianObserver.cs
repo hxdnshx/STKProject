@@ -8,13 +8,14 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Linq;
 
 namespace STKProject.NianObserver
 {
     public class NianObserver : STKWorker
     {
-        public int TargetUID { get; set; }
+        public string TargetUID { get; set; }
         public string UserName { get; set; }
         public string PassWord { get; set; }
         public string Session { get; set; }
@@ -22,6 +23,28 @@ namespace STKProject.NianObserver
         private NianApi api;
         private string uName;
         private DateTime currentTime;
+
+        protected NianContext context
+        {
+            get
+            {
+                if (_context == null)
+                {
+                    lock (_contextlock)
+                    {
+                        if (_context == null)
+                        {
+                            _context = new NianContext(database);
+                        }
+                    }
+                }
+
+                return _context;
+            }
+        }
+
+        private NianContext _context;
+        private object _contextlock = new object();
         /// <summary>
         /// 每天只会获取一次private记本的内容
         /// </summary>
@@ -309,7 +332,7 @@ namespace STKProject.NianObserver
                     if (di == null)
                     {
                         di = new Dream();
-                        data.Dreams.Add(di);
+                        userInfo.Dreams.Add(di);
                         DiffDetected?.Invoke(
                             "http://nian.so/#!/dream/" + id,
                             uName + "新增了梦想" + title,
@@ -324,7 +347,7 @@ namespace STKProject.NianObserver
 
                 }
             }
-            foreach (var dataDream in data.Dreams)
+            foreach (var dataDream in userInfo.Dreams)
             {
                 GetDreamExtendInfo(dataDream, data, currentPeroid % privatePeroid != 0);
             }
@@ -348,6 +371,8 @@ namespace STKProject.NianObserver
                     Session += ".session";
                 _isDeferedLogin = true;
             }
+            context.Database.EnsureCreated();
+            context.Database.Migrate();
         }
 
         void Login()
@@ -384,57 +409,61 @@ namespace STKProject.NianObserver
             {
                 waitToken.WaitHandle.WaitOne(new Random().Next(0, 100000));
             }
-            var context = new NianContext($"{Alias}.db");
-            context.Database.EnsureCreated();
+            
             var value = DiffDetected;
             if (_isFirstRun)
                 DiffDetected = null;
             using (var transaction = context.Database.BeginTransaction())
             {
-                try
+                foreach (var uid in TargetUID.Split(',').Select(str => int.Parse(str)))
                 {
-                    var data = context.UserInfo.Single(r => r.UserId == TargetUID);
-                    if (data == null)
+
+                    try
                     {
-                        data = new UserStatus();
-                        data.UserId = TargetUID;
-                        context.UserInfo.Add(data);
-                    }
-                    currentTime = DateTime.Now;
-                    //Status Data Compare
-                    var userData = api.GetUserData(TargetUID.ToString());
-                    var result = userData["user"] as JObject;
-                    uName = result["name"].Value<string>();
-                    foreach (var obj in result)
-                    {
-                        var val = obj.Value as JValue;
-                        if (val != null)
+                        var data = context.UserInfo.SingleOrDefault(r => r.UserId == uid);
+                        if (data == null)
                         {
-                            var targetValue = obj.Value.Value<string>();
-                            var sourceValue = "";
-                            if (data.Status.ContainsKey(obj.Key))
-                                sourceValue = data.Status[obj.Key];
-                            if (sourceValue != targetValue)
+                            data = new User();
+                            data.UserId = uid;
+                            context.UserInfo.Add(data);
+                        }
+
+                        currentTime = DateTime.Now;
+                        //Status Data Compare
+                        var userData = api.GetUserData(TargetUID.ToString());
+                        var result = userData["user"] as JObject;
+                        uName = result["name"].Value<string>();
+                        foreach (var obj in result)
+                        {
+                            var val = obj.Value as JValue;
+                            if (val != null)
                             {
-                                data.Status[obj.Key] = targetValue;
-                                DiffDetected?.Invoke(
-                                    "http://nian.so/#!/user/" + TargetUID,
-                                    uName + "修改了" + obj.Key,
-                                    uName + "修改了" + obj.Key + ",从" + sourceValue + "变为" + targetValue,
-                                    "Nian." + TargetUID + ".UserInfo." + obj.Key);
+                                var targetValue = obj.Value.Value<string>();
+                                var sourceValue = "";
+                                if (data.Status.ContainsKey(obj.Key))
+                                    sourceValue = data.Status[obj.Key];
+                                if (sourceValue != targetValue)
+                                {
+                                    data.Status[obj.Key] = targetValue;
+                                    DiffDetected?.Invoke(
+                                        "http://nian.so/#!/user/" + TargetUID,
+                                        uName + "修改了" + obj.Key,
+                                        uName + "修改了" + obj.Key + ",从" + sourceValue + "变为" + targetValue,
+                                        "Nian." + TargetUID + ".UserInfo." + obj.Key);
+                                }
                             }
                         }
+
+                        Console.WriteLine("wwww" + data);
+                        GetDreamList(uid, context);
+
+                        currentPeroid++;
                     }
-
-                    Console.WriteLine("wwww" + data);
-                    GetDreamList(TargetUID, context);
-
-                    currentPeroid++;
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                    Console.WriteLine("Module" + Alias + " Throw an Exception");
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        Console.WriteLine("Module" + Alias + " Throw an Exception");
+                    }
                 }
             }
 
@@ -629,5 +658,117 @@ namespace STKProject.NianObserver
             context.ResponseString(obj.ToString());
         }
         */
+        
+
+        #region WebInterface
+
+        [Route("User/{id}")]
+        [Route("{id}")]
+        public JObject GetUserInfo(int id)
+        {
+            var result = context.UserInfo.SingleOrDefault(status => status.UserId == id);
+            if (result == null)
+                return null;
+            JObject obj = new JObject();
+            obj.AddStatus(result.Status);
+            context.Entry(result).Collection(w => w.Dreams);
+            JArray dreams = new JArray();
+            obj.Add("dreams", dreams);
+            foreach (var dataDream in result.Dreams)
+            {
+                JObject dreamContent = new JObject
+                {
+                    {"id", dataDream.DreamId},
+                    {"title", dataDream.Status["title"]},
+                    {"private", dataDream.Status["private"]},
+                    {"lastupdated", dataDream.Status.ContainsKey("lastupdated")? dataDream.Status["lastupdated"] : "0" }
+                };
+                dreams.Add(dreamContent);
+            }
+            return obj;
+        }
+
+        [Route("Dream/{id}")]
+        public JObject GetDreamInfo(int id)
+        {
+            var result = context.Dreams.SingleOrDefault(status => status.DreamId == id);
+            if (result == null)
+                return null;
+            JObject obj = new JObject();
+            obj.AddStatus(result.Status);
+            context.Entry(result).Collection(w => w.Steps);
+            JArray steps = new JArray();
+            obj.Add("steps", steps);
+            foreach (var dreamStep in result.Steps)
+            {
+                JObject stepContent = new JObject
+                {
+                    {"id", dreamStep.StepId},
+                    {"content", dreamStep.Status["content"]},
+                    {"isremoved", dreamStep.IsRemoved},
+                    {"lastupdated",dreamStep.Status.ContainsKey("lastupdated") ? dreamStep.Status["lastupdated"] : "0" }
+                };
+                steps.Add(stepContent);
+            }
+
+            return obj;
+        }
+
+        [Route("Step/{id}")]
+        public JObject GetStepInfo(int id)
+        {
+            var result = context.Steps.SingleOrDefault(status => status.StepId == id);
+            if (result == null)
+                return null;
+            JObject obj = new JObject();
+            obj.AddStatus(result.Status);
+            context.Entry(result).Collection(w => w.Comments);
+            JArray comments = new JArray();
+            obj.Add("comment", comments);
+            obj.Add("isremoved", result.IsRemoved);
+            foreach (var stepComment in result.Comments)
+            {
+                JObject stepContent = new JObject
+                {
+                    {"id", stepComment.Status["id"]},
+                    {"content", stepComment.Status["content"]},
+                    {"isremoved", stepComment.IsRemoved},
+                    {"user", stepComment.Status["user"]}
+                };
+                comments.Add(stepContent);
+            }
+            JArray images = new JArray();
+            obj.Add("images", images);
+            foreach (var stepImage in result.Images)
+            {
+                images.Add(stepImage);
+            }
+
+            return obj;
+        }
+
+        [Route("Comment/{id}")]
+        public JObject GetCommentInfo(int id)
+        {
+            var result = context.Comments.SingleOrDefault(w => w.CommentId == id);
+            if (result == null)
+                return null;
+            JObject obj = new JObject();
+            obj.AddStatus(result.Status);
+            obj.Add("isremoved",result.IsRemoved);
+            return obj;
+        }
+        #endregion
+    }
+
+    internal static class JObjectHelper
+    {
+        public static void AddStatus(this JObject obj, Dictionary<string, string> status)
+        {
+            foreach (var element in status)
+            {
+                obj.Add(element.Key, element.Value);
+            }
+        }
     }
 }
