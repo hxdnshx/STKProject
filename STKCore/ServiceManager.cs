@@ -176,7 +176,7 @@ namespace STKProject
                     throw new Exception($"Error : Can not found {Destination.Instance.Alias}.{dstMethod}");
                 }
 
-                _method = TargetMethod.CreateDelegate(typeof(Delegate), Destination.Instance);
+                _method = TargetMethod.CreateDelegate(TargetDelegate.PropertyType, Destination.Instance);
             }
 
             private static bool IsFunc(MethodInfo mi)
@@ -210,7 +210,7 @@ namespace STKProject
 
                 Delegate fromMethodDelegate;
                 if(!IsFunc(fromMethodInfo))
-                    fromMethodDelegate = Delegate.CreateDelegate(typeof(Delegate), Destination.Instance, fromMethodInfo, true);
+                    fromMethodDelegate = Delegate.CreateDelegate(toPortInfo.PropertyType, Destination.Instance, fromMethodInfo, true);
                 else
                 {
                     fromMethodDelegate = BuildAction(fromMethodInfo, Destination.Instance);

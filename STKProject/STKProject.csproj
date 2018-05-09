@@ -22,6 +22,7 @@
     <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MiscObserver\MiscObserver.csproj" />
     <ProjectReference Include="..\NianObserver\NianObserver.csproj" />
     <ProjectReference Include="..\STKCore\STKCore.csproj" />
   </ItemGroup>
