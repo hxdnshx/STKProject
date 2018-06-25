@@ -53,26 +53,42 @@ namespace STKProject.MiscObserver
             sendData result;
             if (_sendQueue.TryDequeue(out result))
             {
-                var ret = HttpPost(string.Format(RequestUrl, SCKEY), new FormUrlEncodedContent(new Dictionary<string, string>{{"text",result.text},{"desp",result.desp}}));//_helper.HttpGet(result);
-                try
+                for (;;)
                 {
-                    var jsonDoc = JObject.Parse(ret);
-                    var err = jsonDoc["errno"].Value<int>();
-                    if (err != 0)
+                    bool success = false;
+                    try
                     {
-                        var errtxt = jsonDoc["errmsg"].Value<string>();
-                        Console.WriteLine("Serverchan send Error:" + errtxt);
-                        if (errtxt == "bad pushtoken")
+                        var ret = HttpPost(string.Format(RequestUrl, SCKEY),
+                            new FormUrlEncodedContent(
+                                new Dictionary<string, string>
+                                {
+                                    {"text", result.text},
+                                    {"desp", result.desp}
+                                })); //_helper.HttpGet(result);
+                        var jsonDoc = JObject.Parse(ret);
+                        var err = jsonDoc["errno"].Value<int>();
+                        if (err != 0)
                         {
-                            Console.WriteLine("Invalid Pushtoken,Exit ServerChan Module");
-                            _stat = false;
-                            return;
+                            var errtxt = jsonDoc["errmsg"].Value<string>();
+                            Console.WriteLine("Serverchan send Error:" + errtxt);
+                            if (errtxt == "bad pushtoken")
+                            {
+                                Console.WriteLine("Invalid Pushtoken,Exit ServerChan Module");
+                                _stat = false;
+                                return;
+                            }
                         }
+
+                        success = true;
                     }
-                }
-                catch (Exception)
-                {
-                    Console.WriteLine("err");
+                    catch (Exception)
+                    {
+                        Console.WriteLine("Send Failed.Try Resend after 5 seconds.");
+                    }
+
+                    if (success)
+                        break;
+                    Thread.Sleep(5000);
                 }
             }
             else
