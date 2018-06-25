@@ -158,7 +158,7 @@ namespace STKProject
             return context =>
             {
                 var result = func(context).ToString();
-                Console.WriteLine(result);
+                //Console.WriteLine(result);
                 var txt = result;
                 var arr = Encoding.UTF8.GetBytes(txt);
                 context.Response.Body.Write(arr,0,arr.Length);

@@ -739,7 +739,7 @@ namespace STKProject
                 StringEscapeHandling = StringEscapeHandling.EscapeNonAscii,
             }*/
             var retContent = JsonConvert.SerializeObject(status,Formatting.Indented);
-            Console.WriteLine(retContent);
+            //Console.WriteLine(retContent);
             return retContent;
         }
         [Route("Status/{Alias}")]
